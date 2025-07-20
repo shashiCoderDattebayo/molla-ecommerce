@@ -1,7 +1,7 @@
+import React, { createContext, useState, useEffect } from "react";
 import { initializeApp } from "firebase/app";
 import { child, get, getDatabase, ref, update } from "firebase/database";
-import { createUserWithEmailAndPassword, getAuth, GoogleAuthProvider, signInWithPopup, updateProfile, signInAnonymously, signInWithEmailAndPassword } from "firebase/auth";
-import { handleFirebaseError } from "./Handle";
+import { createUserWithEmailAndPassword, getAuth, GoogleAuthProvider, signInWithPopup, updateProfile, signInAnonymously, signInWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCHeejRBZa7afv2hlf8250q7iz874UFFro",
@@ -19,24 +19,61 @@ const db = getDatabase(app);
 const auth = getAuth(app);
 const provider = new GoogleAuthProvider();
 
-const signInWithGoogle = async (setSnackbar) => {
-  const prevUserData = await GetPrevUserData();
+// Create User Context
+const UserContext = createContext();
+
+// User Provider Component
+const UserProvider = ({ children }) => {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const value = {
+    user,
+    loading
+  };
+
+  return (
+    <UserContext.Provider value={value}>
+      {!loading && children}
+    </UserContext.Provider>
+  );
+};
+
+const GetPrevUserData = async () => {
   try {
+    const dbRef = ref(db);
+    const data = await get(child(dbRef, `users/${auth.currentUser.uid}`));
+    return {
+      cart: data.val()?.cart || [],
+      wishlist: data.val()?.wishlist || [],
+    };
+  } catch (error) {
+    console.error("Error getting previous user data:", error);
+    return { cart: [], wishlist: [] };
+  }
+}
+
+const signInWithGoogle = async () => {
+  try {
+    const prevUserData = await GetPrevUserData();
     const signInLogin = await signInWithPopup(auth, provider)
     await update(ref(db, `users/${auth.currentUser.uid}`), {
       uid: signInLogin.user.uid,
       displayName: signInLogin.user.displayName,
       ...prevUserData
     });
-    setSnackbar({
-      ...handleFirebaseError("golg"),
-      open: true,
-    })
   } catch (error) {
-    setSnackbar({
-      ...handleFirebaseError(error.code),
-      open: true,
-    })
+    console.error("Error signing in with Google:", error);
+    throw error;
   }
 };
 
@@ -53,61 +90,75 @@ const registerWithUserAndPassword = async (inputs) => {
       ...prevUserData
     })
   } catch (error) {
+    console.error("Error registering user:", error);
     throw error;
   }
 }
 
 const LoginWithEmailAndPassword = async (inputs) => {
   try {
-    // const prevUserData = await GetPrevUserData();
-    // console.log(prevUserData)
     await signInWithEmailAndPassword(auth, inputs.email, inputs.password);
-    // await update(ref(db, `users/${auth.currentUser.uid}`), {
-    //   ...prevUserData
-    // });
   } catch (error) {
+    console.error("Error logging in:", error);
     throw error;
   }
 }
 
 const AnonymouslySignIn = async () => {
-  await signInAnonymously(auth)
-  await update(ref(db, `users/${auth.currentUser.uid}`), {
-    uid: auth.currentUser.uid,
-  });
+  try {
+    await signInAnonymously(auth)
+    await update(ref(db, `users/${auth.currentUser.uid}`), {
+      uid: auth.currentUser.uid,
+    });
+  } catch (error) {
+    console.error("Error signing in anonymously:", error);
+  }
 };
 
-const GetUserWishList = async () => {
-  const dbRef = ref(db);
-  const data = await get(child(dbRef, `users/${auth.currentUser.uid}/wishlist`));
-  return (data.exists() ? data.val() : [])
+const GetUserWishList = async (setWishList) => {
+  try {
+    const dbRef = ref(db);
+    const data = await get(child(dbRef, `users/${auth.currentUser.uid}/wishlist`));
+    const wishlist = data.exists() ? data.val() : [];
+    if (setWishList) setWishList(wishlist);
+    return wishlist;
+  } catch (error) {
+    console.error("Error getting wishlist:", error);
+    return [];
+  }
 }
 
 const AddToWishList = async (wishListArray) => {
-  await update(ref(db, `users/${auth.currentUser.uid}`), {
-    "wishlist": wishListArray
-  })
+  try {
+    await update(ref(db, `users/${auth.currentUser.uid}`), {
+      "wishlist": wishListArray
+    })
+  } catch (error) {
+    console.error("Error updating wishlist:", error);
+  }
 }
 
-const GetUserCart = async () => {
-  const dbRef = ref(db);
-  const data = await get(child(dbRef, `users/${auth.currentUser.uid}/cart`));
-  return (data.exists() ? data.val() : [])
+const GetUserCart = async (setCartList) => {
+  try {
+    const dbRef = ref(db);
+    const data = await get(child(dbRef, `users/${auth.currentUser.uid}/cart`));
+    const cart = data.exists() ? data.val() : [];
+    if (setCartList) setCartList(cart);
+    return cart;
+  } catch (error) {
+    console.error("Error getting cart:", error);
+    return [];
+  }
 }
 
 const AddToCartList = async (cartListArray) => {
-  await update(ref(db, `users/${auth.currentUser.uid}`), {
-    "cart": cartListArray
-  })
+  try {
+    await update(ref(db, `users/${auth.currentUser.uid}`), {
+      "cart": cartListArray
+    })
+  } catch (error) {
+    console.error("Error updating cart:", error);
+  }
 }
 
-const GetPrevUserData = async () => {
-  const dbRef = ref(db);
-  const data = await get(child(dbRef, `users/${auth.currentUser.uid}`));
-  return {
-    cart: data.val().cart || [],
-    wishlist: data.val().wishlist || [],
-  };
-}
-
-export { db, auth, signInWithGoogle, registerWithUserAndPassword, LoginWithEmailAndPassword, AnonymouslySignIn, GetUserWishList, AddToWishList, GetUserCart, AddToCartList }
+export { db, auth, signInWithGoogle, registerWithUserAndPassword, LoginWithEmailAndPassword, AnonymouslySignIn, GetUserWishList, AddToWishList, GetUserCart, AddToCartList, UserContext, UserProvider }

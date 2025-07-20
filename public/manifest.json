@@ -1,6 +1,7 @@
 {
-  "short_name": "React App",
-  "name": "Create React App Sample",
+  "short_name": "Spice Kings",
+  "name": "👑 SPICE KINGS - Authentic Telugu Heritage Pickles",
+  "description": "Traditional handmade pickles with premium quality spices. Viral on social media for authentic taste!",
   "icons": [
     {
       "src": "favicon.ico",
@@ -20,6 +21,7 @@
   ],
   "start_url": ".",
   "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff"
+  "theme_color": "#FF6B35",
+  "background_color": "#3E2723",
+  "orientation": "portrait-primary"
 }
